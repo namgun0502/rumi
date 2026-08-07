@@ -1,7 +1,7 @@
-// GameInfo.jsx - 게임 보드 상단 정보창 및 턴 관리 버튼 바입니다.
+// GameInfo.jsx - 게임 보드 상단 정보창 및 단축키 안내 버튼 바입니다.
 
 import React from 'react';
-import { ArrowRightLeft, RotateCcw, Plus, CheckCircle, ShieldAlert } from 'lucide-react';
+import { ArrowRightLeft, RotateCcw, Plus, CheckCircle, ShieldAlert, Keyboard } from 'lucide-react';
 
 export default function GameInfo({
   players,
@@ -21,7 +21,9 @@ export default function GameInfo({
 
         {/* 1. 타이틀 & 플레이어 현황 */}
         <div className="flex items-center gap-3">
-          <span className="text-xl font-black text-amber-300 tracking-wider mr-2">🎲 루미큐브</span>
+          <span className="text-xl font-black text-amber-300 tracking-wider mr-2 flex items-center gap-1.5">
+            🎲 루미큐브
+          </span>
           
           <div className="flex items-center gap-2">
             {players.map((p, idx) => {
@@ -80,21 +82,25 @@ export default function GameInfo({
           )}
         </div>
 
-        {/* 3. 액션 버튼 (내 턴일 때 활성화) */}
+        {/* 3. 액션 버튼 & 단축키 안내 뱃지 */}
         <div className="flex items-center gap-2">
+          {/* 되돌리기 (Undo) 단축키 Z / U */}
           <button
             onClick={onUndo}
             disabled={!isMyTurn}
             className="
-              flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold
+              flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold
               bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40
-              border border-slate-600 transition-all active:scale-95 cursor-pointer
+              border border-slate-600 transition-all active:scale-95 cursor-pointer relative group
             "
-            title="턴 시작 시점 보드 상태로 초기화"
+            title="단축키: Z 또는 U"
           >
-            <RotateCcw className="w-4 h-4" /> 되돌리기
+            <RotateCcw className="w-4 h-4" /> 
+            <span>되돌리기</span>
+            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-700 text-amber-300 rounded border border-slate-500">Z</kbd>
           </button>
 
+          {/* 1장 뽑기 (Draw) 단축키 D */}
           <button
             onClick={onDrawTile}
             disabled={!isMyTurn}
@@ -103,10 +109,14 @@ export default function GameInfo({
               bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-40
               border border-amber-400/50 transition-all active:scale-95 shadow-md cursor-pointer
             "
+            title="단축키: D"
           >
-            <Plus className="w-4 h-4" /> 1장 뽑기 (패스)
+            <Plus className="w-4 h-4" /> 
+            <span>1장 뽑기</span>
+            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-amber-800 text-amber-200 rounded border border-amber-500">D</kbd>
           </button>
 
+          {/* 턴 완료 (Submit) 단축키 Space / Enter */}
           <button
             onClick={onSubmitTurn}
             disabled={!isMyTurn}
@@ -117,8 +127,11 @@ export default function GameInfo({
                 : 'bg-emerald-900/40 text-emerald-400 border border-emerald-800/40 opacity-40 cursor-not-allowed'
               }
             `}
+            title="단축키: Space 또는 Enter"
           >
-            <ArrowRightLeft className="w-4 h-4" /> 턴 완료
+            <ArrowRightLeft className="w-4 h-4" /> 
+            <span>턴 완료</span>
+            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-800 text-emerald-200 rounded border border-emerald-500">Space</kbd>
           </button>
         </div>
 

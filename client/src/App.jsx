@@ -1,5 +1,5 @@
-// App.jsx - 손패 자동 정렬 기능이 포함된 루미큐브 AI 대전 메인 앱입니다.
-// 남건이 코드를 쉽게 파악할 수 있도록 친절한 한글 주석을 달아두었습니다.
+// App.jsx - 아무것도 내지 않고 턴 완료 클릭 시 자동 1장 뽑기가 적용된 메인 앱입니다.
+// 남건이 로직을 한눈에 알 수 있도록 친절한 한글 주석을 달았습니다.
 
 import React, { useState, useEffect, useCallback } from 'react';
 
@@ -28,12 +28,11 @@ export default function App() {
   const myPlayerId = 'human_player';
 
   // -------------------------------------------------------------
-  // 1. 게임 시작 초기화 (초기 손패 14장 자동 정렬 적용)
+  // 1. 게임 시작 초기화
   // -------------------------------------------------------------
   const handleStartGame = (playerName, aiCount) => {
     const fullDeck = shuffleDeck(generateFullDeck());
 
-    // 초기 14장 받아서 바로 자동 정렬 (색상별 -> 숫자순)
     const initialRack = sortTilesByColor(fullDeck.splice(0, 14));
 
     const humanPlayer = {
@@ -86,7 +85,7 @@ export default function App() {
             if (idx === currentTurnIndex) {
               return {
                 ...p,
-                rack: sortTilesByColor(move.newRack), // AI 손패도 자동 정렬
+                rack: sortTilesByColor(move.newRack),
                 hasRegistered: move.justRegistered ? true : p.hasRegistered
               };
             }
@@ -126,7 +125,6 @@ export default function App() {
       setCurrentTurnIndex(nextIndex);
 
       if (prevPlayers[nextIndex].id === myPlayerId) {
-        // 내 턴으로 올 때 손패 자동 정렬
         const sortedRack = sortTilesByColor(prevPlayers[nextIndex].rack);
         setLocalRack(sortedRack);
 
@@ -149,7 +147,7 @@ export default function App() {
     setLocalRack(sortTilesByColor(JSON.parse(JSON.stringify(turnSnapshot.rack))));
   }, [turnSnapshot]);
 
-  // 타일 1장 뽑을 때 자동 정렬
+  // 타일 1장 뽑고 턴 넘기기
   const handleDrawTile = useCallback(() => {
     if (players[currentTurnIndex]?.id !== myPlayerId) return;
 
@@ -160,7 +158,6 @@ export default function App() {
       const drawnTile = newDeck.pop();
       setDeck(newDeck);
 
-      // 뽑은 타일 추가 후 자동 정렬!
       const updatedRack = sortTilesByColor([...turnSnapshot.rack, drawnTile]);
       setLocalRack(updatedRack);
 
@@ -175,9 +172,24 @@ export default function App() {
     moveToNextTurn();
   }, [players, currentTurnIndex, myPlayerId, deck, turnSnapshot, handleUndo]);
 
+  // 턴 제출 (아무것도 내지 않았을 시 자동 1장 뽑기 연동!)
   const handleSubmitTurn = useCallback(() => {
     if (players[currentTurnIndex]?.id !== myPlayerId) return;
 
+    // 💡 감지: 턴 시작 시점 손패 개수와 현재 손패 개수가 같고, 보드 세트도 변화가 없는지 검사
+    const originalRackIds = new Set(turnSnapshot.rack.map(t => t.id));
+    const currentRackIds = new Set(localRack.map(t => t.id));
+    
+    const isRackUnchanged = originalRackIds.size === currentRackIds.size && 
+      [...originalRackIds].every(id => currentRackIds.has(id));
+
+    // 아무 패도 새로 내거나 가져오지 않았다면 -> 자동 1장 뽑기로 간주!
+    if (isRackUnchanged) {
+      handleDrawTile();
+      return;
+    }
+
+    // 패를 내거나 변경한 경우: 정상 유효성 검사 수행
     const cleanBoard = localBoard.filter(s => s.tiles && s.tiles.length > 0);
 
     if (!validateBoard(cleanBoard)) {
@@ -220,7 +232,7 @@ export default function App() {
     }
 
     moveToNextTurn();
-  }, [players, currentTurnIndex, myPlayerId, localBoard, localRack, turnSnapshot]);
+  }, [players, currentTurnIndex, myPlayerId, localBoard, localRack, turnSnapshot, handleDrawTile]);
 
   // 키보드 단축키
   useEffect(() => {
@@ -250,7 +262,7 @@ export default function App() {
   }, [gamePhase, players, currentTurnIndex, myPlayerId, handleSubmitTurn, handleDrawTile, handleUndo]);
 
   // -------------------------------------------------------------
-  // 4. 드래그 앤 드롭 (보드에서 다시 가져올 때도 자동 정렬)
+  // 4. 드래그 앤 드롭
   // -------------------------------------------------------------
 
   const handleTileDragStart = (e, tile, fromSetId) => {
@@ -324,7 +336,6 @@ export default function App() {
     }
   };
 
-  // 보드에서 내 패로 도로 집어넣을 때 자동 정렬
   const handleRackDrop = (e) => {
     e.preventDefault();
     const dataStr = e.dataTransfer.getData('text/plain');
@@ -340,7 +351,6 @@ export default function App() {
       return s;
     }).filter(s => s.tiles.length > 0));
 
-    // 집어넣을 때 자동 정렬 적용
     setLocalRack(prev => sortTilesByColor([...prev, tile]));
   };
 

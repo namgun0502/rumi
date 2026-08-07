@@ -1,4 +1,4 @@
-// App.jsx - 정식 루미큐브 규칙(첫 등록 30점 순수 손패 검증)이 완벽 적용된 메인 앱입니다.
+// App.jsx - AI 턴 보드 동기화 및 30점 첫 등록 판정이 완전 수정된 메인 앱입니다.
 // 남건이 코드를 쉽게 이해할 수 있도록 친절한 한글 주석을 달았습니다.
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -68,7 +68,36 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 2. AI 턴 루프
+  // 턴 이동 함수 (overrideBoard를 받아 AI가 낸 최신 보드를 바로 동기화합니다)
+  // -------------------------------------------------------------
+  const moveToNextTurn = (overrideBoard = null) => {
+    setPlayers(prevPlayers => {
+      const nextIndex = (currentTurnIndex + 1) % prevPlayers.length;
+      setCurrentTurnIndex(nextIndex);
+
+      // 다음 턴에 쓰일 최신 보드판 상태를 결정합니다.
+      setLocalBoard(prevBoard => {
+        const targetBoard = overrideBoard || prevBoard;
+
+        if (prevPlayers[nextIndex].id === myPlayerId) {
+          const sortedRack = sortTilesByColor(prevPlayers[nextIndex].rack);
+          setLocalRack(sortedRack);
+
+          // 내 턴이 되었을 때의 원본 보드 및 손패 스냅샷 저장
+          setTurnSnapshot({
+            board: JSON.parse(JSON.stringify(targetBoard)),
+            rack: JSON.parse(JSON.stringify(sortedRack))
+          });
+        }
+        return targetBoard;
+      });
+
+      return prevPlayers;
+    });
+  };
+
+  // -------------------------------------------------------------
+  // 2. AI 턴 자동 실행 루프
   // -------------------------------------------------------------
   useEffect(() => {
     if (gamePhase !== 'playing') return;
@@ -77,9 +106,11 @@ export default function App() {
     if (currentP && currentP.isAI) {
       const timer = setTimeout(() => {
         const move = makeAiMove(currentP, localBoard);
+        let updatedBoard = localBoard;
 
         if (move.action === 'play') {
-          setLocalBoard(move.newBoard);
+          updatedBoard = move.newBoard;
+          setLocalBoard(updatedBoard);
 
           setPlayers(prev => prev.map((p, idx) => {
             if (idx === currentTurnIndex) {
@@ -112,30 +143,13 @@ export default function App() {
           }
         }
 
-        moveToNextTurn();
+        // 최신 보드(updatedBoard)를 직접 전달하여 등록된 패가 소멸하지 않도록 보장합니다!
+        moveToNextTurn(updatedBoard);
       }, 1200);
 
       return () => clearTimeout(timer);
     }
   }, [currentTurnIndex, gamePhase]);
-
-  const moveToNextTurn = () => {
-    setPlayers(prevPlayers => {
-      const nextIndex = (currentTurnIndex + 1) % prevPlayers.length;
-      setCurrentTurnIndex(nextIndex);
-
-      if (prevPlayers[nextIndex].id === myPlayerId) {
-        const sortedRack = sortTilesByColor(prevPlayers[nextIndex].rack);
-        setLocalRack(sortedRack);
-
-        setTurnSnapshot({
-          board: JSON.parse(JSON.stringify(localBoard)),
-          rack: JSON.parse(JSON.stringify(sortedRack))
-        });
-      }
-      return prevPlayers;
-    });
-  };
 
   // -------------------------------------------------------------
   // 3. 플레이어 턴 컨트롤 (되돌리기 / 턴 제출 및 자동 1장 드로우)
@@ -199,18 +213,13 @@ export default function App() {
 
     const me = players.find(p => p.id === myPlayerId);
 
-    // 🔥 [핵심 오류 수정] 첫 등록 (Initial Meld) 30점 정확 판정 로직
+    // 첫 등록 (Initial Meld) 30점 정밀 판정 로직
     if (!me.hasRegistered) {
       const originalBoardSets = turnSnapshot.board || [];
-      const originalBoardTileIds = new Set(
-        originalBoardSets.flatMap(setObj => (setObj.tiles || []).map(t => t.id))
-      );
-
-      // 1. 첫 등록 전에는 기존 보드의 타일을 조합하거나 움직일 수 없습니다.
-      // 보드에 놓여있던 기존 타일들이 훼손되었거나 조작되었는지 체크합니다.
+      
+      // 첫 등록 전에는 기존 보드의 타일을 건드리거나 움직일 수 없습니다.
       let isOldBoardModified = false;
       for (const oldSet of originalBoardSets) {
-        // 기존 세트의 타일이 그대로 유지되었는지 확인
         const currentMatchingSet = cleanBoard.find(newSet => 
           newSet.tiles.length >= oldSet.tiles.length &&
           oldSet.tiles.every(oldTile => newSet.tiles.some(t => t.id === oldTile.id))
@@ -225,7 +234,7 @@ export default function App() {
         return alert('⚠️ 첫 등록 시에는 보드의 기존 타일을 건드리거나 분해할 수 없습니다!\n오직 내 손패(Rack) 타일만으로 30점 이상을 내려놓으세요.');
       }
 
-      // 2. 오직 내 원래 손패(originalRackIds)의 타일들로만 이루어진 완전한 신규 세트들만 골라냅니다.
+      // 오직 내 원래 손패(originalRackIds)의 타일들로만 이루어진 완전한 신규 세트들만 골라냅니다.
       const freshRackSets = cleanBoard.filter(setObj => 
         setObj.tiles.every(tile => originalRackIds.has(tile.id))
       );
@@ -234,7 +243,7 @@ export default function App() {
         return alert('⚠️ 첫 등록 시에는 본인 손패에서 새로운 완전한 세트를 최소 1개 이상 내려놓아야 합니다!');
       }
 
-      // 3. 순수 손패 세트들의 점수 합계가 30점 이상인지 정밀 검증합니다.
+      // 순수 손패 세트들의 점수 합계가 30점 이상인지 정밀 검증합니다.
       const isValidInitial = validateInitialMeld(freshRackSets.map(s => s.tiles));
       if (!isValidInitial) {
         return alert('⚠️ 첫 등록 시 내려놓는 패의 총 점수 합이 최소 30점 이상이어야 합니다!');
@@ -260,7 +269,7 @@ export default function App() {
       return;
     }
 
-    moveToNextTurn();
+    moveToNextTurn(cleanBoard);
   }, [players, currentTurnIndex, myPlayerId, localBoard, localRack, turnSnapshot, handleDrawTileInternal]);
 
   // -------------------------------------------------------------

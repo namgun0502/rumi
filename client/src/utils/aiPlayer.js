@@ -1,5 +1,5 @@
-// aiPlayer.js - 루미큐브 AI 플레이어의 의사결정 및 고급 조합 탐색 알고리즘입니다.
-// 남건이 코드를 이해하기 쉽도록 친절한 한글 주석을 달아두었습니다.
+// aiPlayer.js - 루미큐브 AI 플레이어의 의사결정 및 조합 탐색 알고리즘입니다.
+// 남건이 코드를 이해하기 쉽도록 친절한 한글 주석을 다 달아두었습니다.
 
 import { 
   isValidGroup, 
@@ -12,7 +12,8 @@ import {
  */
 export function makeAiMove(aiPlayer, currentBoard) {
   const rack = [...aiPlayer.rack];
-  const board = JSON.parse(JSON.stringify(currentBoard));
+  // 보드에서 타일이 없는 빈 세트 객체들을 깨끗하게 정리합니다.
+  const cleanBoard = (currentBoard || []).filter(s => s.tiles && s.tiles.length > 0);
 
   // 1. 손패에서 만들 수 있는 모든 유효 세트 탐색
   const possibleSets = findAllPossibleSetsFromRack(rack);
@@ -29,9 +30,9 @@ export function makeAiMove(aiPlayer, currentBoard) {
       const newRack = rack.filter(t => !playedTileIds.has(t.id));
       
       const newBoard = [
-        ...board,
+        ...cleanBoard,
         ...meldCombo.map((tiles, idx) => ({ 
-          id: `set_ai_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 4)}`, 
+          id: `set_ai_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`, 
           tiles 
         }))
       ];
@@ -55,9 +56,9 @@ export function makeAiMove(aiPlayer, currentBoard) {
     const newRack = rack.filter(t => !playedTileIds.has(t.id));
     
     const newBoard = [
-      ...board,
+      ...cleanBoard,
       ...bestMultiSetCombo.map((tiles, idx) => ({ 
-        id: `set_ai_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 4)}`, 
+        id: `set_ai_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`, 
         tiles 
       }))
     ];
@@ -74,7 +75,7 @@ export function makeAiMove(aiPlayer, currentBoard) {
 }
 
 /**
- * 손패(Rack)에서 만들 수 있는 모든 가능한 유효 세트(3장~5장) 탐색
+ * 손패(Rack)에서 만들 수 있는 모든 가능한 유효 세트(3장~6장) 탐색
  */
 function findAllPossibleSetsFromRack(rack) {
   const sets = [];

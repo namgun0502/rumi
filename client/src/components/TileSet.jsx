@@ -1,16 +1,56 @@
-// TileSet.jsx - 보드 위에 올려져 있는 타일 묶음(그룹 또는 런 세트)을 표시합니다.
-// 루미큐브 규칙 유효성에 따라 실시간으로 초록 테두리(유효) 또는 빨간 테두리+shake(무효) 경고 효과를 제공합니다.
+// TileSet.jsx - 보드 위에 올려진 타일 세트를 정렬하여 표시하는 컴포넌트입니다.
+// 그룹(Group) 및 런(Run) 규칙에 따라 세트 내부 타일들을 자동으로 예쁘게 정렬합니다.
 
 import React from 'react';
 import Tile from './Tile';
-import { isValidSet } from '../utils/ruleEngine';
+import { isValidSet, isValidGroup, isValidRun } from '../utils/ruleEngine';
+
+/**
+ * 세트 내부 타일들을 규칙에 맞게 자동 정렬하는 도우미 함수
+ */
+function sortSetTiles(tiles) {
+  if (!tiles || tiles.length === 0) return [];
+  const sorted = [...tiles];
+
+  // 1. 런(Run)인 경우: 같은 색상이므로 숫자 오름차순 정렬 (조커 고려)
+  if (isValidRun(sorted)) {
+    const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
+    return sorted.sort((a, b) => {
+      if (a.isJoker) return 1;
+      if (b.isJoker) return -1;
+      return a.number - b.number;
+    });
+  }
+
+  // 2. 그룹(Group)인 경우: 같은 숫지이므로 색상 순서(Red -> Blue -> Orange -> Black)로 정렬
+  if (isValidGroup(sorted)) {
+    const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
+    return sorted.sort((a, b) => {
+      if (a.isJoker) return 1;
+      if (b.isJoker) return -1;
+      return (colorOrder[a.color] || 99) - (colorOrder[b.color] || 99);
+    });
+  }
+
+  // 일반 타일 정렬 (숫자순 -> 색상순)
+  const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
+  return sorted.sort((a, b) => {
+    if (a.isJoker) return 1;
+    if (b.isJoker) return -1;
+    if (a.number !== b.number) return a.number - b.number;
+    return (colorOrder[a.color] || 99) - (colorOrder[b.color] || 99);
+  });
+}
 
 export default function TileSet({ setObj, onTileDragStart, onTileClick, onSetDrop }) {
-  const tiles = setObj.tiles || [];
-  const valid = isValidSet(tiles);
+  const rawTiles = setObj.tiles || [];
+  
+  // 보드 세트 타일 자동 정렬 적용!
+  const sortedTiles = sortSetTiles(rawTiles);
+  const valid = isValidSet(sortedTiles);
 
   const handleDragOver = (e) => {
-    e.preventDefault(); // 드롭 허용
+    e.preventDefault();
   };
 
   const handleDrop = (e) => {
@@ -33,7 +73,7 @@ export default function TileSet({ setObj, onTileDragStart, onTileClick, onSetDro
         }
       `}
     >
-      {tiles.map((tile) => (
+      {sortedTiles.map((tile) => (
         <Tile
           key={tile.id}
           tile={tile}
@@ -43,7 +83,6 @@ export default function TileSet({ setObj, onTileDragStart, onTileClick, onSetDro
         />
       ))}
 
-      {/* 무효 세트 경고 아이콘 / 메시지 */}
       {!valid && (
         <span className="text-xs font-bold text-rose-400 px-1 animate-pulse">
           ⚠️ 3장 이상 필요

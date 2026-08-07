@@ -1,38 +1,28 @@
-// tileFactory.js - 루미큐브 타일 106개를 생성하고, 섞고, 정렬하는 유틸리티 파일입니다.
-// 남건이 로직을 쉽게 이해할 수 있도록 상세한 한글 주석을 작성했습니다.
+// tileFactory.js - 106장 타일 생성 및 스마트 조커 수열 정렬 유틸리티입니다.
+// 남건이 코드를 이해하기 쉽도록 친절한 한글 주석을 달아두었습니다.
 
-// 사용 가능한 4가지 타일 색상 정의
 export const TILE_COLORS = ['red', 'blue', 'orange', 'black'];
 
-/**
- * 106장의 완전한 루미큐브 타일 덱을 생성하는 함수입니다.
- * - Red, Blue, Orange, Black 4가지 색상
- * - 각 색상별 1~13 숫자 패가 2세트씩 (4 * 13 * 2 = 104장)
- * - 빨간색 조커 1장, 검은색 조커 1장 (2장)
- * - 총 106장
- */
 export function generateFullDeck() {
   const deck = [];
 
-  // 1. 일반 타일 104장 생성 (세트 1, 세트 2)
   for (let setNum = 1; setNum <= 2; setNum++) {
     for (const color of TILE_COLORS) {
       for (let num = 1; num <= 13; num++) {
         deck.push({
-          id: `${color}_${num}_set${setNum}`, // 고유 식별자 (예: red_7_set1)
-          color: color,                       // 타일 색상 ('red', 'blue', 'orange', 'black')
-          number: num,                        // 타일 숫자 (1 ~ 13)
-          isJoker: false,                     // 조커 여부 (false)
+          id: `${color}_${num}_set${setNum}`,
+          color: color,
+          number: num,
+          isJoker: false,
         });
       }
     }
   }
 
-  // 2. 조커 타일 2장 생성
   deck.push({
     id: 'joker_red',
     color: 'red',
-    number: 0,       // 조커는 기본 숫자 0으로 표시 (검증 시 임의 숫자로 대체됨)
+    number: 0,
     isJoker: true,
   });
 
@@ -46,9 +36,6 @@ export function generateFullDeck() {
   return deck;
 }
 
-/**
- * 타일 배열을 무작위로 섞는 함수 (피셔-예이츠 셔플 알고리즘)
- */
 export function shuffleDeck(deck) {
   const shuffled = [...deck];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -59,22 +46,64 @@ export function shuffleDeck(deck) {
 }
 
 /**
- * 타일 배열을 색상별 -> 숫자순으로 정렬하는 함수 (손패 정렬 기능에 사용)
+ * 조커 스마트 수열 위치 추정 정렬 (예: 9, 10, 11, [조커], 13 에서 조커를 12 자리에 배치)
  */
 export function sortTilesByColor(tiles) {
+  if (!tiles || tiles.length === 0) return [];
   const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
-  return [...tiles].sort((a, b) => {
-    if (a.isJoker) return 1;
-    if (b.isJoker) return -1;
-    if (colorOrder[a.color] !== colorOrder[b.color]) {
-      return colorOrder[a.color] - colorOrder[b.color];
+
+  // 1. 색상별로 그룹화
+  const groupedByColor = { red: [], blue: [], orange: [], black: [], joker: [] };
+
+  for (const t of tiles) {
+    if (t.isJoker) {
+      groupedByColor.joker.push(t);
+    } else {
+      groupedByColor[t.color].push(t);
     }
-    return a.number - b.number;
-  });
+  }
+
+  const result = [];
+
+  // 2. 색상 순서대로 정렬하면서 조커의 들어갈 자리 추정
+  for (const color of TILE_COLORS) {
+    const group = groupedByColor[color].sort((a, b) => a.number - b.number);
+    if (group.length === 0) continue;
+
+    // 조커가 있고, 현재 색상과 조커 색상이 맞거나 일반 조커가 있는 경우
+    // 수열 간격(gap)을 탐색하여 빈 숫자 자리에 조커 삽입
+    const finalGroup = [];
+    for (let i = 0; i < group.length; i++) {
+      finalGroup.push(group[i]);
+
+      if (i < group.length - 1) {
+        const diff = group[i + 1].number - group[i].number;
+        // 연속 숫자가 2 이상 차이나면(예: 11과 13) 중간 구멍에 조커 배치
+        if (diff === 2 && groupedByColor.joker.length > 0) {
+          const matchingJokerIndex = groupedByColor.joker.findIndex(
+            j => j.color === color || j.isJoker
+          );
+          if (matchingJokerIndex !== -1) {
+            const joker = groupedByColor.joker.splice(matchingJokerIndex, 1)[0];
+            finalGroup.push(joker);
+          }
+        }
+      }
+    }
+
+    result.push(...finalGroup);
+  }
+
+  // 남아있는 조커가 있으면 맨 뒤에 추가
+  if (groupedByColor.joker.length > 0) {
+    result.push(...groupedByColor.joker);
+  }
+
+  return result;
 }
 
 /**
- * 타일 배열을 숫자순 -> 색상별로 정렬하는 함수 (손패 정렬 기능에 사용)
+ * 숫자별 정렬 함수
  */
 export function sortTilesByNumber(tiles) {
   const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };

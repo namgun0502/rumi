@@ -1,28 +1,47 @@
-// TileSet.jsx - 보드 위에 올려진 타일 세트를 정렬하여 표시하는 컴포넌트입니다.
-// 그룹(Group) 및 런(Run) 규칙에 따라 세트 내부 타일들을 자동으로 예쁘게 정렬합니다.
+// TileSet.jsx - 보드 위 세트 타일을 규칙 및 스마트 조커 위치에 맞게 정렬하는 컴포넌트입니다.
 
 import React from 'react';
 import Tile from './Tile';
 import { isValidSet, isValidGroup, isValidRun } from '../utils/ruleEngine';
 
 /**
- * 세트 내부 타일들을 규칙에 맞게 자동 정렬하는 도우미 함수
+ * 런/그룹 규칙 및 조커 수열 위치에 따른 스마트 세트 정렬 함수
  */
 function sortSetTiles(tiles) {
   if (!tiles || tiles.length === 0) return [];
   const sorted = [...tiles];
 
-  // 1. 런(Run)인 경우: 같은 색상이므로 숫자 오름차순 정렬 (조커 고려)
+  // 1. 런(Run)인 경우: 같은 색상의 숫자 연속 세트
   if (isValidRun(sorted)) {
-    const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
-    return sorted.sort((a, b) => {
-      if (a.isJoker) return 1;
-      if (b.isJoker) return -1;
-      return a.number - b.number;
-    });
+    const regularTiles = sorted.filter(t => !t.isJoker).sort((a, b) => a.number - b.number);
+    const jokers = sorted.filter(t => t.isJoker);
+
+    if (regularTiles.length === 0) return sorted;
+
+    const result = [];
+    let jokerIdx = 0;
+
+    for (let i = 0; i < regularTiles.length; i++) {
+      result.push(regularTiles[i]);
+
+      if (i < regularTiles.length - 1) {
+        const gap = regularTiles[i + 1].number - regularTiles[i].number;
+        // 연속 숫자 중간 구멍(gap > 1, 예: 11과 13 사이)에 조커 배치!
+        for (let g = 1; g < gap && jokerIdx < jokers.length; g++) {
+          result.push(jokers[jokerIdx++]);
+        }
+      }
+    }
+
+    // 남아있는 조커는 뒤(또는 앞)에 붙이기
+    while (jokerIdx < jokers.length) {
+      result.push(jokers[jokerIdx++]);
+    }
+
+    return result;
   }
 
-  // 2. 그룹(Group)인 경우: 같은 숫지이므로 색상 순서(Red -> Blue -> Orange -> Black)로 정렬
+  // 2. 그룹(Group)인 경우: 같은 숫자, 다른 색상 (Red -> Blue -> Orange -> Black)
   if (isValidGroup(sorted)) {
     const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
     return sorted.sort((a, b) => {
@@ -32,7 +51,6 @@ function sortSetTiles(tiles) {
     });
   }
 
-  // 일반 타일 정렬 (숫자순 -> 색상순)
   const colorOrder = { red: 1, blue: 2, orange: 3, black: 4 };
   return sorted.sort((a, b) => {
     if (a.isJoker) return 1;
@@ -44,8 +62,6 @@ function sortSetTiles(tiles) {
 
 export default function TileSet({ setObj, onTileDragStart, onTileClick, onSetDrop }) {
   const rawTiles = setObj.tiles || [];
-  
-  // 보드 세트 타일 자동 정렬 적용!
   const sortedTiles = sortSetTiles(rawTiles);
   const valid = isValidSet(sortedTiles);
 

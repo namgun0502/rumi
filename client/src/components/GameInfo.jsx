@@ -1,7 +1,7 @@
-// GameInfo.jsx - 게임 보드 상단 정보창 및 단축키 안내 버튼 바입니다.
+// GameInfo.jsx - 게임 보드 상단 정보창 및 Q, W, E 단축키 버튼 바입니다.
 
 import React from 'react';
-import { ArrowRightLeft, RotateCcw, Plus, CheckCircle, ShieldAlert, Keyboard } from 'lucide-react';
+import { ArrowRightLeft, RotateCcw, Plus, CheckCircle, ShieldAlert } from 'lucide-react';
 
 export default function GameInfo({
   players,
@@ -82,9 +82,9 @@ export default function GameInfo({
           )}
         </div>
 
-        {/* 3. 액션 버튼 & 단축키 안내 뱃지 */}
+        {/* 3. 액션 버튼 (Q, W, E 단축키 배치) */}
         <div className="flex items-center gap-2">
-          {/* 되돌리기 (Undo) 단축키 Z / U */}
+          {/* Q 키: 되돌리기 */}
           <button
             onClick={onUndo}
             disabled={!isMyTurn}
@@ -93,14 +93,14 @@ export default function GameInfo({
               bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40
               border border-slate-600 transition-all active:scale-95 cursor-pointer relative group
             "
-            title="단축키: Z 또는 U"
+            title="단축키: Q"
           >
             <RotateCcw className="w-4 h-4" /> 
             <span>되돌리기</span>
-            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-700 text-amber-300 rounded border border-slate-500">Z</kbd>
+            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-700 text-amber-300 rounded border border-slate-500">Q</kbd>
           </button>
 
-          {/* 1장 뽑기 (Draw) 단축키 D */}
+          {/* W 키: 1장 뽑기 */}
           <button
             onClick={onDrawTile}
             disabled={!isMyTurn}
@@ -109,14 +109,14 @@ export default function GameInfo({
               bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-40
               border border-amber-400/50 transition-all active:scale-95 shadow-md cursor-pointer
             "
-            title="단축키: D"
+            title="단축키: W"
           >
             <Plus className="w-4 h-4" /> 
             <span>1장 뽑기</span>
-            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-amber-800 text-amber-200 rounded border border-amber-500">D</kbd>
+            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-amber-800 text-amber-200 rounded border border-amber-500">W</kbd>
           </button>
 
-          {/* 턴 완료 (Submit) 단축키 Space / Enter */}
+          {/* E 키: 턴 완료 */}
           <button
             onClick={onSubmitTurn}
             disabled={!isMyTurn}
@@ -127,11 +127,11 @@ export default function GameInfo({
                 : 'bg-emerald-900/40 text-emerald-400 border border-emerald-800/40 opacity-40 cursor-not-allowed'
               }
             `}
-            title="단축키: Space 또는 Enter"
+            title="단축키: E (또는 Space/Enter)"
           >
             <ArrowRightLeft className="w-4 h-4" /> 
             <span>턴 완료</span>
-            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-800 text-emerald-200 rounded border border-emerald-500">Space</kbd>
+            <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-800 text-emerald-200 rounded border border-emerald-500">E</kbd>
           </button>
         </div>
 

@@ -1,5 +1,5 @@
-// App.jsx - 키보드 단축키(Space, Enter, D, Z, U) 지원 및 AI 대전 컨트롤러입니다.
-// 남건이 로직을 한눈에 알 수 있도록 한글 주석을 포함했습니다.
+// App.jsx - 손패 자동 정렬 기능이 포함된 루미큐브 AI 대전 메인 앱입니다.
+// 남건이 코드를 쉽게 파악할 수 있도록 친절한 한글 주석을 달아두었습니다.
 
 import React, { useState, useEffect, useCallback } from 'react';
 
@@ -9,7 +9,7 @@ import GameBoard from './components/GameBoard';
 import PlayerRack from './components/PlayerRack';
 import WinScreen from './components/WinScreen';
 
-import { generateFullDeck, shuffleDeck } from './utils/tileFactory';
+import { generateFullDeck, shuffleDeck, sortTilesByColor } from './utils/tileFactory';
 import { validateBoard, validateInitialMeld } from './utils/ruleEngine';
 import { makeAiMove } from './utils/aiPlayer';
 
@@ -28,15 +28,18 @@ export default function App() {
   const myPlayerId = 'human_player';
 
   // -------------------------------------------------------------
-  // 게임 시작 초기화
+  // 1. 게임 시작 초기화 (초기 손패 14장 자동 정렬 적용)
   // -------------------------------------------------------------
   const handleStartGame = (playerName, aiCount) => {
     const fullDeck = shuffleDeck(generateFullDeck());
 
+    // 초기 14장 받아서 바로 자동 정렬 (색상별 -> 숫자순)
+    const initialRack = sortTilesByColor(fullDeck.splice(0, 14));
+
     const humanPlayer = {
       id: myPlayerId,
       name: playerName,
-      rack: fullDeck.splice(0, 14),
+      rack: initialRack,
       hasRegistered: false,
       isAI: false,
     };
@@ -47,7 +50,7 @@ export default function App() {
       aiPlayers.push({
         id: `ai_${i + 1}`,
         name: aiNames[i],
-        rack: fullDeck.splice(0, 14),
+        rack: sortTilesByColor(fullDeck.splice(0, 14)),
         hasRegistered: false,
         isAI: true,
       });
@@ -58,15 +61,15 @@ export default function App() {
     setDeck(fullDeck);
     setPlayers(initialPlayers);
     setLocalBoard([]);
-    setLocalRack(humanPlayer.rack);
+    setLocalRack(initialRack);
     setCurrentTurnIndex(0);
     setWinner(null);
-    setTurnSnapshot({ board: [], rack: JSON.parse(JSON.stringify(humanPlayer.rack)) });
+    setTurnSnapshot({ board: [], rack: JSON.parse(JSON.stringify(initialRack)) });
     setGamePhase('playing');
   };
 
   // -------------------------------------------------------------
-  // AI 턴 루프
+  // 2. AI 턴 루프
   // -------------------------------------------------------------
   useEffect(() => {
     if (gamePhase !== 'playing') return;
@@ -83,7 +86,7 @@ export default function App() {
             if (idx === currentTurnIndex) {
               return {
                 ...p,
-                rack: move.newRack,
+                rack: sortTilesByColor(move.newRack), // AI 손패도 자동 정렬
                 hasRegistered: move.justRegistered ? true : p.hasRegistered
               };
             }
@@ -103,7 +106,7 @@ export default function App() {
 
             setPlayers(prev => prev.map((p, idx) => {
               if (idx === currentTurnIndex) {
-                return { ...p, rack: [...p.rack, drawnTile] };
+                return { ...p, rack: sortTilesByColor([...p.rack, drawnTile]) };
               }
               return p;
             }));
@@ -123,9 +126,13 @@ export default function App() {
       setCurrentTurnIndex(nextIndex);
 
       if (prevPlayers[nextIndex].id === myPlayerId) {
+        // 내 턴으로 올 때 손패 자동 정렬
+        const sortedRack = sortTilesByColor(prevPlayers[nextIndex].rack);
+        setLocalRack(sortedRack);
+
         setTurnSnapshot({
           board: JSON.parse(JSON.stringify(localBoard)),
-          rack: JSON.parse(JSON.stringify(prevPlayers[nextIndex].rack))
+          rack: JSON.parse(JSON.stringify(sortedRack))
         });
       }
       return prevPlayers;
@@ -133,15 +140,16 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 플레이어 턴 컨트롤 (되돌리기 / 1장 뽑기 / 턴 제출)
+  // 3. 플레이어 턴 컨트롤 (되돌리기 / 1장 뽑기 / 턴 제출)
   // -------------------------------------------------------------
 
   const handleUndo = useCallback(() => {
     if (!turnSnapshot) return;
     setLocalBoard(JSON.parse(JSON.stringify(turnSnapshot.board)));
-    setLocalRack(JSON.parse(JSON.stringify(turnSnapshot.rack)));
+    setLocalRack(sortTilesByColor(JSON.parse(JSON.stringify(turnSnapshot.rack))));
   }, [turnSnapshot]);
 
+  // 타일 1장 뽑을 때 자동 정렬
   const handleDrawTile = useCallback(() => {
     if (players[currentTurnIndex]?.id !== myPlayerId) return;
 
@@ -152,7 +160,8 @@ export default function App() {
       const drawnTile = newDeck.pop();
       setDeck(newDeck);
 
-      const updatedRack = [...turnSnapshot.rack, drawnTile];
+      // 뽑은 타일 추가 후 자동 정렬!
+      const updatedRack = sortTilesByColor([...turnSnapshot.rack, drawnTile]);
       setLocalRack(updatedRack);
 
       setPlayers(prev => prev.map(p => {
@@ -197,7 +206,7 @@ export default function App() {
       if (p.id === myPlayerId) {
         return {
           ...p,
-          rack: localRack,
+          rack: sortTilesByColor(localRack),
           hasRegistered: true
         };
       }
@@ -213,12 +222,9 @@ export default function App() {
     moveToNextTurn();
   }, [players, currentTurnIndex, myPlayerId, localBoard, localRack, turnSnapshot]);
 
-  // -------------------------------------------------------------
-  // ⌨️ 키보드 단축키 이벤트 리스너 (Space/Enter: 턴완료, D: 1장뽑기, Z/U: 되돌리기)
-  // -------------------------------------------------------------
+  // 키보드 단축키
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Input 창 입력 중일 때는 단축키 작동 방지
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
       if (gamePhase !== 'playing') return;
 
@@ -228,7 +234,7 @@ export default function App() {
       const key = e.key.toLowerCase();
 
       if (key === ' ' || key === 'enter') {
-        e.preventDefault(); // 스페이스바 스크롤 방지
+        e.preventDefault();
         handleSubmitTurn();
       } else if (key === 'd') {
         e.preventDefault();
@@ -244,7 +250,7 @@ export default function App() {
   }, [gamePhase, players, currentTurnIndex, myPlayerId, handleSubmitTurn, handleDrawTile, handleUndo]);
 
   // -------------------------------------------------------------
-  // 드래그 앤 드롭
+  // 4. 드래그 앤 드롭 (보드에서 다시 가져올 때도 자동 정렬)
   // -------------------------------------------------------------
 
   const handleTileDragStart = (e, tile, fromSetId) => {
@@ -318,6 +324,7 @@ export default function App() {
     }
   };
 
+  // 보드에서 내 패로 도로 집어넣을 때 자동 정렬
   const handleRackDrop = (e) => {
     e.preventDefault();
     const dataStr = e.dataTransfer.getData('text/plain');
@@ -333,7 +340,8 @@ export default function App() {
       return s;
     }).filter(s => s.tiles.length > 0));
 
-    setLocalRack(prev => [...prev, tile]);
+    // 집어넣을 때 자동 정렬 적용
+    setLocalRack(prev => sortTilesByColor([...prev, tile]));
   };
 
   if (gamePhase === 'lobby') {

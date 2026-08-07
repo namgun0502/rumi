@@ -1,4 +1,4 @@
-// App.jsx - Q, W, E 단축키 지원 및 스마트 조커 정렬이 적용된 메인 앱입니다.
+// App.jsx - 정식 루미큐브 규칙(첫 등록 30점 순수 손패 검증)이 완벽 적용된 메인 앱입니다.
 // 남건이 코드를 쉽게 이해할 수 있도록 친절한 한글 주석을 달았습니다.
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -138,16 +138,18 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 3. 플레이어 턴 컨트롤 (되돌리기 / 1장 뽑기 / 턴 제출)
+  // 3. 플레이어 턴 컨트롤 (되돌리기 / 턴 제출 및 자동 1장 드로우)
   // -------------------------------------------------------------
 
+  // 이번 턴 시작 시의 판과 손패로 되돌립니다.
   const handleUndo = useCallback(() => {
     if (!turnSnapshot) return;
     setLocalBoard(JSON.parse(JSON.stringify(turnSnapshot.board)));
     setLocalRack(sortTilesByColor(JSON.parse(JSON.stringify(turnSnapshot.rack))));
   }, [turnSnapshot]);
 
-  const handleDrawTile = useCallback(() => {
+  // 패를 제출하지 않았을 때 자동으로 실행되는 1장 뽑기 함수입니다.
+  const handleDrawTileInternal = useCallback(() => {
     if (players[currentTurnIndex]?.id !== myPlayerId) return;
 
     handleUndo();
@@ -171,45 +173,75 @@ export default function App() {
     moveToNextTurn();
   }, [players, currentTurnIndex, myPlayerId, deck, turnSnapshot, handleUndo]);
 
+  // 턴 완료 제출 처리 (첫 등록 30점 정밀 검증 포함)
   const handleSubmitTurn = useCallback(() => {
     if (players[currentTurnIndex]?.id !== myPlayerId) return;
 
     const originalRackIds = new Set(turnSnapshot.rack.map(t => t.id));
     const currentRackIds = new Set(localRack.map(t => t.id));
     
+    // 이번 턴에 내 손패 개수와 구성이 동일한지 검사합니다.
     const isRackUnchanged = originalRackIds.size === currentRackIds.size && 
       [...originalRackIds].every(id => currentRackIds.has(id));
 
-    // 아무것도 내지 않고 턴 완료 클릭 시 -> 자동 1장 뽑기
+    // 아무것도 내지 않고 턴 완료 클릭/스페이스바 입력 시 -> 자동 1장 뽑고 턴 전환
     if (isRackUnchanged) {
-      handleDrawTile();
+      handleDrawTileInternal();
       return;
     }
 
     const cleanBoard = localBoard.filter(s => s.tiles && s.tiles.length > 0);
 
+    // 보드 위 모든 세트가 3장 이상의 규칙에 맞는지 검사
     if (!validateBoard(cleanBoard)) {
-      return alert('⚠️ 보드 위에 규칙에 맞지 않는 3장 미만의 세트가 존재합니다!');
+      return alert('⚠️ 보드 위에 규칙에 맞지 않는 3장 미만 또는 무효 세트가 존재합니다!');
     }
 
     const me = players.find(p => p.id === myPlayerId);
 
+    // 🔥 [핵심 오류 수정] 첫 등록 (Initial Meld) 30점 정확 판정 로직
     if (!me.hasRegistered) {
-      const oldBoard = turnSnapshot.board || [];
-      const newSets = cleanBoard.filter(newSet => 
-        !oldBoard.some(oldSet => oldSet.id === newSet.id)
+      const originalBoardSets = turnSnapshot.board || [];
+      const originalBoardTileIds = new Set(
+        originalBoardSets.flatMap(setObj => (setObj.tiles || []).map(t => t.id))
       );
 
-      if (newSets.length === 0) {
-        return alert('⚠️ 첫 등록 시에는 손패에서 새로운 세트를 최소 1개 이상 내려놓아야 합니다!');
+      // 1. 첫 등록 전에는 기존 보드의 타일을 조합하거나 움직일 수 없습니다.
+      // 보드에 놓여있던 기존 타일들이 훼손되었거나 조작되었는지 체크합니다.
+      let isOldBoardModified = false;
+      for (const oldSet of originalBoardSets) {
+        // 기존 세트의 타일이 그대로 유지되었는지 확인
+        const currentMatchingSet = cleanBoard.find(newSet => 
+          newSet.tiles.length >= oldSet.tiles.length &&
+          oldSet.tiles.every(oldTile => newSet.tiles.some(t => t.id === oldTile.id))
+        );
+        if (!currentMatchingSet) {
+          isOldBoardModified = true;
+          break;
+        }
       }
 
-      const isValidInitial = validateInitialMeld(newSets.map(s => s.tiles));
+      if (isOldBoardModified) {
+        return alert('⚠️ 첫 등록 시에는 보드의 기존 타일을 건드리거나 분해할 수 없습니다!\n오직 내 손패(Rack) 타일만으로 30점 이상을 내려놓으세요.');
+      }
+
+      // 2. 오직 내 원래 손패(originalRackIds)의 타일들로만 이루어진 완전한 신규 세트들만 골라냅니다.
+      const freshRackSets = cleanBoard.filter(setObj => 
+        setObj.tiles.every(tile => originalRackIds.has(tile.id))
+      );
+
+      if (freshRackSets.length === 0) {
+        return alert('⚠️ 첫 등록 시에는 본인 손패에서 새로운 완전한 세트를 최소 1개 이상 내려놓아야 합니다!');
+      }
+
+      // 3. 순수 손패 세트들의 점수 합계가 30점 이상인지 정밀 검증합니다.
+      const isValidInitial = validateInitialMeld(freshRackSets.map(s => s.tiles));
       if (!isValidInitial) {
         return alert('⚠️ 첫 등록 시 내려놓는 패의 총 점수 합이 최소 30점 이상이어야 합니다!');
       }
     }
 
+    // 30점 등록 조건을 만족했거나 이미 등록한 상태인 경우 플레이어 상태 업데이트
     setPlayers(prev => prev.map(p => {
       if (p.id === myPlayerId) {
         return {
@@ -221,6 +253,7 @@ export default function App() {
       return p;
     }));
 
+    // 승리 조건: 내 손패 타일을 모두 소진함
     if (localRack.length === 0) {
       setWinner(me);
       setGamePhase('ended');
@@ -228,11 +261,10 @@ export default function App() {
     }
 
     moveToNextTurn();
-  }, [players, currentTurnIndex, myPlayerId, localBoard, localRack, turnSnapshot, handleDrawTile]);
+  }, [players, currentTurnIndex, myPlayerId, localBoard, localRack, turnSnapshot, handleDrawTileInternal]);
 
   // -------------------------------------------------------------
-  // ⌨️ Q, W, E 키보드 단축키 리스너
-  // Q: 되돌리기 (Undo), W: 1장 뽑기 (Draw), E (또는 Space/Enter): 턴 완료 (Submit)
+  // ⌨️ Q (되돌리기) 및 Space / E / Enter (턴 완료) 키보드 단축키 리스너
   // -------------------------------------------------------------
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -247,21 +279,18 @@ export default function App() {
       if (key === 'q') {
         e.preventDefault();
         handleUndo(); // Q: 되돌리기
-      } else if (key === 'w') {
+      } else if (key === ' ' || e.key === 'Spacebar' || key === 'e' || key === 'enter') {
         e.preventDefault();
-        handleDrawTile(); // W: 1장 뽑기
-      } else if (key === 'e' || key === ' ' || key === 'enter') {
-        e.preventDefault();
-        handleSubmitTurn(); // E / Space / Enter: 턴 완료
+        handleSubmitTurn(); // Space / E / Enter: 턴 완료
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gamePhase, players, currentTurnIndex, myPlayerId, handleSubmitTurn, handleDrawTile, handleUndo]);
+  }, [gamePhase, players, currentTurnIndex, myPlayerId, handleSubmitTurn, handleUndo]);
 
   // -------------------------------------------------------------
-  // 4. 드래그 앤 드롭
+  // 4. 드래그 앤 드롭 이벤트 처리
   // -------------------------------------------------------------
 
   const handleTileDragStart = (e, tile, fromSetId) => {
@@ -366,7 +395,6 @@ export default function App() {
         currentTurnIndex={currentTurnIndex}
         myPlayerId={myPlayerId}
         deckLength={deck.length}
-        onDrawTile={handleDrawTile}
         onSubmitTurn={handleSubmitTurn}
         onUndo={handleUndo}
         isMyTurn={isMyTurn}

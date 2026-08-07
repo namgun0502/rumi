@@ -1,5 +1,5 @@
-// ruleEngine.js - 루미큐브의 핵심 규칙(그룹, 런, 30점 등록)을 검증하는 엔진입니다.
-// 남건이 코드를 한눈에 이해할 수 있도록 친절한 한글 주석을 다 달았습니다.
+// ruleEngine.js - 루미큐브의 핵심 규칙(그룹, 런, 30점 첫 등록)을 검증하는 엔진입니다.
+// 남건이 코드를 한눈에 이해할 수 있도록 친절한 한글 주석을 달았습니다.
 
 /**
  * 1. 그룹(Group) 검증 함수
@@ -8,14 +8,12 @@
  * - 조커는 어떤 색상의 숫자든 대신할 수 있습니다.
  */
 export function isValidGroup(tiles) {
-  // 그룹은 최소 3장, 최대 4장이어야 합니다.
-  if (tiles.length < 3 || tiles.length > 4) return false;
+  if (!tiles || tiles.length < 3 || tiles.length > 4) return false;
 
   // 조커가 아닌 일반 타일들만 골라냅니다.
   const regularTiles = tiles.filter(t => !t.isJoker);
-  const jokerCount = tiles.length - regularTiles.length;
 
-  // 전부 조커인 세트는 무효 처리 (실제 게임에서 일어날 수 없음)
+  // 전부 조커인 세트는 무효 처리
   if (regularTiles.length === 0) return false;
 
   // 모든 일반 타일의 숫자가 동일한지 검사합니다.
@@ -38,8 +36,7 @@ export function isValidGroup(tiles) {
  * - 조커는 빈 숫자 자리를 대신할 수 있습니다.
  */
 export function isValidRun(tiles) {
-  // 런은 최소 3장 이상이어야 합니다.
-  if (tiles.length < 3) return false;
+  if (!tiles || tiles.length < 3) return false;
 
   // 조커가 아닌 일반 타일들만 골라냅니다.
   const regularTiles = tiles.filter(t => !t.isJoker);
@@ -53,7 +50,6 @@ export function isValidRun(tiles) {
   const isSameColor = regularTiles.every(t => t.color === targetColor);
   if (!isSameColor) return false;
 
-  // 조커를 포함하여 연속된 숫자를 만들 수 있는지 검사하기 위해 
   // 일반 타일을 숫자 순으로 정렬합니다.
   const sortedRegular = [...regularTiles].sort((a, b) => a.number - b.number);
 
@@ -64,23 +60,18 @@ export function isValidRun(tiles) {
     }
   }
 
-  // 첫 번째 일반 타일의 숫자와 마지막 일반 타일의 숫자 차이를 계산합니다.
   const minNum = sortedRegular[0].number;
   const maxNum = sortedRegular[sortedRegular.length - 1].number;
 
-  // 루미큐브의 숫자는 1 ~ 13 범위여야 합니다.
-  // 조커가 앞에 븉거나 뒤에 붙었을 때 1 미만이나 13 초과가 되면 안 됩니다.
-  const span = maxNum - minNum + 1; // 필요한 전체 타일 수
+  const span = maxNum - minNum + 1; // 필요한 전체 연속 숫자 범위
   const missingCount = span - sortedRegular.length; // 중간에 빠진 숫자 개수
 
   // 중간에 빠진 숫자를 채우기에 조커 개수가 부족하면 무효
   if (missingCount > jokerCount) return false;
 
-  // 조커로 앞/뒤를 채웠을 때 1~13 범위를 벗어나는지 체크
   const unusedJokers = jokerCount - missingCount;
-  
-  // 조커를 앞에 배치하여 minNum을 줄여보거나 뒤에 배치하여 maxNum을 늘립니다.
-  // 범위 1~13 내에 담길 수 있는지 확인
+
+  // 1~13 범위를 벗어나는지 확인
   if (span + unusedJokers > 13) return false;
 
   return true;
@@ -95,42 +86,42 @@ export function isValidSet(tiles) {
 }
 
 /**
- * 4. 세트의 점수(합산값)를 계산하는 함수 (30점 첫 등록 검증용)
- * - 조커는 완성된 그룹 또는 런에서 대체하는 숫자의 점수로 계산됩니다.
+ * 4. 세트의 점수(합산값)를 정확히 계산하는 함수 (30점 첫 등록 검증용)
+ * - 조커는 완성된 그룹 또는 런에서 대체하는 진짜 숫자의 점수로 다 더해집니다.
  */
 export function calculateSetScore(tiles) {
   if (!isValidSet(tiles)) return 0;
 
   const regularTiles = tiles.filter(t => !t.isJoker);
   
-  // 그룹인 경우: 조커도 일반 타일과 동일한 숫자의 점수를 가집니다.
+  // A. 그룹인 경우: 조커도 일반 타일과 동일한 숫자의 점수를 가집니다.
   if (isValidGroup(tiles)) {
     const groupNum = regularTiles[0].number;
     return groupNum * tiles.length;
   }
 
-  // 런인 경우: 조커가 대체하는 연속된 숫자들을 구해 점수를 합산합니다.
+  // B. 런인 경우: 조커가 대체하는 연속된 숫자를 찾아 전체 합산합니다.
   if (isValidRun(tiles)) {
-    // 런 세트의 올바른 숫자 배열을 추정합니다.
     const sortedRegular = [...regularTiles].sort((a, b) => a.number - b.number);
     const minNum = sortedRegular[0].number;
-    
-    // 중간 빈곳을 조커로 채우고, 남은 조커는 앞(1에 가깝게) 또는 뒤(13에 가깝게)에 놓습니다.
-    let startNum = minNum;
-    let jokerCount = tiles.length - regularTiles.length;
-    
-    // 중간 빠진 개수
+    const maxNum = sortedRegular[sortedRegular.length - 1].number;
+    const jokerCount = tiles.length - regularTiles.length;
+
+    // 중간에 비어있는 조커 개수 계산
+    let missingCount = 0;
     for (let i = 0; i < sortedRegular.length - 1; i++) {
-      const gap = sortedRegular[i+1].number - sortedRegular[i].number - 1;
-      jokerCount -= gap;
-    }
-    
-    // 남은 조커는 가능하면 앞으로 당겨서 1 이상이 유지되도록 함
-    while (jokerCount > 0 && startNum > 1) {
-      startNum--;
-      jokerCount--;
+      missingCount += (sortedRegular[i + 1].number - sortedRegular[i].number - 1);
     }
 
+    const unusedJokers = jokerCount - missingCount;
+
+    // 조커를 1 미만이 되지 않는 선에서 앞으로 붙이고, 남으면 뒤로 붙입니다.
+    let frontJokers = Math.min(unusedJokers, minNum - 1);
+    
+    // 시작 숫자 결정
+    let startNum = minNum - frontJokers;
+
+    // 첫 번째 타일(startNum)부터 타일 수만큼 연속된 숫자들의 합을 구합니다.
     let totalScore = 0;
     for (let i = 0; i < tiles.length; i++) {
       totalScore += (startNum + i);
@@ -143,8 +134,8 @@ export function calculateSetScore(tiles) {
 
 /**
  * 5. 첫 등록(Initial Meld) 30점 조건 검증 함수
- * @param {Array} newMeldSets - 플레이어가 새로 손패에서 내려놓은 세트들의 배열
- * @returns {boolean} - 합이 30점 이상이고 모든 세트가 유효한지 여부
+ * @param {Array} newMeldSets - 순수 손패로 구성된 새로 내놓은 세트들의 배열
+ * @returns {boolean} - 점수 합이 30점 이상이고 모두 규칙에 맞는지 여부
  */
 export function validateInitialMeld(newMeldSets) {
   if (!newMeldSets || newMeldSets.length === 0) return false;
@@ -152,22 +143,21 @@ export function validateInitialMeld(newMeldSets) {
   let totalScore = 0;
 
   for (const set of newMeldSets) {
-    if (!isValidSet(set)) return false; // 세트 자체가 유효하지 않으면 실패
+    if (!isValidSet(set)) return false;
     totalScore += calculateSetScore(set);
   }
 
-  // 등록 조건: 세트들의 총합이 최소 30점 이상이어야 함
   return totalScore >= 30;
 }
 
 /**
  * 6. 전체 보드 유효성 검사 함수
- * - 보드 위에 놓인 모든 세트가 유효한 3장 이상의 그룹 또는 런인지 검사합니다.
  */
 export function validateBoard(boardSets) {
   if (!boardSets) return true;
   for (const set of boardSets) {
-    if (!isValidSet(set.tiles || set)) {
+    const tiles = set.tiles || set;
+    if (!isValidSet(tiles)) {
       return false;
     }
   }
